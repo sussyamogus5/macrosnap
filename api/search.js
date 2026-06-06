@@ -83,12 +83,20 @@ export default async function handler(req, res) {
     }
   }
 
-  // Sort: shorter names first (more generic = more likely what user wants)
-  // USDA results first since they're more accurate for fresh foods
-  results.sort((a, b) => {
+  // Filter out implausible entries (e.g. fruit with 10g protein per 100g)
+  const plausible = results.filter(r => {
+    // Protein shouldn't exceed calories/3 for most whole foods
+    if (r.protein_g > r.calories / 3 && r.calories < 200) return false;
+    // Calories shouldn't be 0
+    if (r.calories === 0) return false;
+    return true;
+  });
+
+  // Sort: USDA first, then by name length
+  plausible.sort((a, b) => {
     if (a.source !== b.source) return a.source === 'USDA' ? -1 : 1;
     return a.food.length - b.food.length;
   });
 
-  res.status(200).json({ results: results.slice(0, 6) });
+  res.status(200).json({ results: plausible.slice(0, 6) });
 }
