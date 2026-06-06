@@ -6,8 +6,11 @@ export default async function handler(req, res) {
 
   const portionWeight = parseFloat(weight) || 100;
 
+  // Pass the weight directly in the query so CalorieNinjas handles scaling
+  const queryWithWeight = `${portionWeight}g ${query}`;
+
   const response = await fetch(
-    `https://api.api-ninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
+    `https://api.api-ninjas.com/v1/nutrition?query=${encodeURIComponent(queryWithWeight)}`,
     { headers: { 'X-Api-Key': process.env.CALORIENINJAS_API_KEY } }
   );
 
@@ -18,20 +21,14 @@ export default async function handler(req, res) {
 
   const toTitleCase = s => String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
-  // CalorieNinjas returns per-serving data based on the query
-  // We need to scale to portionWeight
-  const results = data.slice(0, 6).map(item => {
-    const servingWeight = parseFloat(item.serving_size_g) || 100;
-    const scale = portionWeight / servingWeight;
-    return {
-      food: toTitleCase(item.name),
-      brand: null,
-      calories: Math.round((item.calories || 0) * scale),
-      protein_g: Math.round((item.protein_g || 0) * scale * 10) / 10,
-      carbs_g: Math.round((item.carbohydrates_total_g || 0) * scale * 10) / 10,
-      fat_g: Math.round((item.fat_total_g || 0) * scale * 10) / 10,
-    };
-  });
+  const results = data.slice(0, 6).map(item => ({
+    food: toTitleCase(item.name),
+    brand: null,
+    calories: Math.round(item.calories || 0),
+    protein_g: Math.round((item.protein_g || 0) * 10) / 10,
+    carbs_g: Math.round((item.carbohydrates_total_g || 0) * 10) / 10,
+    fat_g: Math.round((item.fat_total_g || 0) * 10) / 10,
+  }));
 
   res.status(200).json({ results });
 }
