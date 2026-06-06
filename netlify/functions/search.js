@@ -9,7 +9,7 @@ exports.handler = async (event) => {
   const portionWeight = parseFloat(weight) || 100;
 
   const res = await fetch(
-    `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=Branded,SR%20Legacy,Survey%20(FNDDS)&pageSize=6&api_key=DEMO_KEY`
+    `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=Branded,SR%20Legacy,Survey%20(FNDDS)&pageSize=6&api_key=${process.env.USDA_API_KEY}`
   );
   const data = await res.json();
 
