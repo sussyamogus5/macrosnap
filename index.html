@@ -477,7 +477,7 @@
     document.getElementById('result-card').style.display = 'none';
 
     try {
-      const res = await fetch('/.netlify/functions/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64, imageMimeType, weight, extra })
@@ -537,7 +537,7 @@
     const resultsEl = document.getElementById('search-results');
     resultsEl.innerHTML = '<div class="searching-spinner"><div class="spinner"></div></div>';
     try {
-      const res = await fetch(`/.netlify/functions/search?query=${encodeURIComponent(query)}&weight=${weight}`);
+      const res = await fetch(`/api/search?query=${encodeURIComponent(query)}&weight=${weight}`);
       const data = await res.json();
       if (!data.results || data.results.length === 0) {
         resultsEl.innerHTML = '<div class="search-empty">no results found, try a different search</div>';
