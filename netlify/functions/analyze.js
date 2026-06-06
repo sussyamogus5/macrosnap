@@ -40,25 +40,19 @@ Respond with ONLY this JSON, nothing else:
   const raw = data.choices[0].message.content;
   console.log('Model raw response:', raw);
 
-  // Strip markdown fences, whitespace, and common prefixes
-  let cleaned = raw
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .replace(/^[^{]*/s, '')  // strip anything before first {
-    .replace(/}[^}]*$/s, '}') // strip anything after last }
-    .trim();
+  // Aggressively strip all markdown fences and find the JSON
+  const stripped = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
 
-  // Extract JSON object
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    return { statusCode: 500, body: JSON.stringify({ error: `Model returned unexpected response: ${raw.substring(0, 100)}` }) };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
   }
 
   let result;
   try {
     result = JSON.parse(jsonMatch[0]);
   } catch(e) {
-    return { statusCode: 500, body: JSON.stringify({ error: `JSON parse failed: ${raw.substring(0, 100)}` }) };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
   }
 
   const clean = {
