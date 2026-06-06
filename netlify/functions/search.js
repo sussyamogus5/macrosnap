@@ -9,21 +9,27 @@ exports.handler = async (event) => {
   const portionWeight = parseFloat(weight) || 100;
 
   const res = await fetch(
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size`
+    `https://search.openfoodfacts.org/search?q=${encodeURIComponent(query)}&page_size=10&fields=product_name,brands,nutriments`,
+    { headers: { 'User-Agent': 'MacroSnap/1.0 (nutrition tracker app)' } }
   );
+
+  if (!res.ok) {
+    return { statusCode: 500, body: JSON.stringify({ error: 'Search service unavailable, try again' }) };
+  }
+
   const data = await res.json();
 
-  if (!data.products || data.products.length === 0) {
+  if (!data.hits || data.hits.length === 0) {
     return { statusCode: 200, body: JSON.stringify({ results: [] }) };
   }
 
   const toTitleCase = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
   const seen = new Set();
 
-  const results = data.products
+  const results = data.hits
     .map(p => {
       const n = p.nutriments || {};
-      const calories = parseFloat(n['energy-kcal_100g'] || n['energy_100g'] / 4.184 || 0);
+      const calories = parseFloat(n['energy-kcal_100g'] || 0);
       const protein = parseFloat(n['proteins_100g'] || 0);
       const carbs = parseFloat(n['carbohydrates_100g'] || 0);
       const fat = parseFloat(n['fat_100g'] || 0);
@@ -32,9 +38,8 @@ exports.handler = async (event) => {
 
       const brand = p.brands ? toTitleCase(p.brands.split(',')[0].trim()) : null;
       const name = toTitleCase(p.product_name.trim());
-      const displayName = (brand && !name.toLowerCase().includes(brand.toLowerCase().split(' ')[0]))
-        ? `${brand} ${name}`
-        : name;
+      const brandInName = brand && name.toLowerCase().includes(brand.toLowerCase().split(' ')[0]);
+      const displayName = (brand && !brandInName) ? `${brand} ${name}` : name;
 
       const key = displayName.toLowerCase();
       if (seen.has(key)) return null;
