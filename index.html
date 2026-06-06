@@ -142,6 +142,8 @@
   .btn-secondary:active { background: var(--bg2); }
 
   /* loading */
+  .food-guess { display: none; align-items: center; gap: 8px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 99px; padding: 8px 14px; margin-bottom: 14px; font-size: 14px; color: var(--text); }
+  .food-guess-confirm { background: var(--green); color: white; border: none; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 500; cursor: pointer; display: none; }
   .loading { text-align: center; padding: 24px; display: none; }
   .loading-text { font-size: 14px; color: var(--text2); margin-top: 10px; }
   .spinner { width: 28px; height: 28px; border: 2.5px solid var(--border2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.75s linear infinite; margin: 0 auto; }
@@ -266,6 +268,11 @@
       <div class="upload-text">tap to take or upload a photo</div>
     </div>
     <input type="file" accept="image/*" id="file-input" style="display:none" onchange="handleFile(event)" />
+    <div class="food-guess" id="food-guess">
+      <i class="ti ti-sparkles" style="font-size:16px;color:var(--green)" aria-hidden="true"></i>
+      <span id="food-guess-text"></span>
+      <button class="food-guess-confirm" id="food-guess-confirm">use this</button>
+    </div>
 
     <div class="preview-wrap" id="preview-wrap">
       <img class="preview-img" id="preview-img" alt="Food preview" />
@@ -434,6 +441,7 @@
     document.getElementById('weight-input').value = '';
     document.getElementById('name-input').value = '';
     document.getElementById('desc-input').value = '';
+    document.getElementById('food-guess').style.display = 'none';
     imageBase64 = null; imageMimeType = 'image/jpeg'; pendingResult = null;
   }
 
@@ -447,6 +455,7 @@
     document.getElementById('preview-wrap').style.display = 'none';
     document.getElementById('upload-zone').style.display = 'block';
     document.getElementById('result-card').style.display = 'none';
+    document.getElementById('food-guess').style.display = 'none';
     document.getElementById('analyze-btn').textContent = 'analyze meal';
     pendingResult = null;
     triggerUpload();
@@ -461,8 +470,38 @@
       document.getElementById('preview-img').src = ev.target.result;
       document.getElementById('preview-wrap').style.display = 'block';
       document.getElementById('upload-zone').style.display = 'none';
+      document.getElementById('food-guess').style.display = 'none';
+      quickIdentify();
     };
     reader.readAsDataURL(file);
+  }
+
+  async function quickIdentify() {
+    const guessEl = document.getElementById('food-guess');
+    const guessText = document.getElementById('food-guess-text');
+    guessEl.style.display = 'flex';
+    guessText.textContent = 'identifying…';
+    document.getElementById('food-guess-confirm').style.display = 'none';
+    try {
+      const res = await fetch('/api/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, imageMimeType })
+      });
+      const data = await res.json();
+      if (data.food) {
+        guessText.textContent = 'Looks like… ' + data.food + '?';
+        document.getElementById('food-guess-confirm').style.display = 'inline-block';
+        document.getElementById('food-guess-confirm').onclick = () => {
+          document.getElementById('name-input').value = data.food;
+          guessEl.style.display = 'none';
+        };
+      } else {
+        guessEl.style.display = 'none';
+      }
+    } catch(e) {
+      guessEl.style.display = 'none';
+    }
   }
 
   async function analyzeMeal() {
