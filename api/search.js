@@ -28,7 +28,6 @@ export default async function handler(req, res) {
       const fat = parseFloat(n['fat_100g'] || 0);
       if (!calories || !p.product_name) return null;
 
-      // brands can be a string or array — handle both
       const brandsRaw = Array.isArray(p.brands) ? p.brands[0] : p.brands;
       const brand = brandsRaw ? toTitleCase(String(brandsRaw).split(',')[0].trim()) : null;
       const name = toTitleCase(p.product_name.trim());
@@ -43,6 +42,8 @@ export default async function handler(req, res) {
       return {
         food: displayName,
         brand,
+        // score: shorter names that closely match the query rank higher
+        _score: displayName.toLowerCase().includes(query.toLowerCase()) ? -displayName.length : 0,
         calories: Math.round(calories * scale),
         protein_g: Math.round(protein * scale * 10) / 10,
         carbs_g: Math.round(carbs * scale * 10) / 10,
@@ -50,6 +51,8 @@ export default async function handler(req, res) {
       };
     })
     .filter(Boolean)
+    .sort((a, b) => a._score - b._score)
+    .map(({ _score, ...r }) => r)
     .slice(0, 6);
 
   res.status(200).json({ results });
