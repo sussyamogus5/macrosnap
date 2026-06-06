@@ -63,6 +63,8 @@ export default async function handler(req, res) {
       const fat = parseFloat(n['fat_100g'] || 0);
       if (!calories || !p.product_name) continue;
       const brandsRaw = Array.isArray(p.brands) ? p.brands[0] : p.brands;
+      // Skip unbranded OFF entries — they're often inaccurate user submissions
+      if (!brandsRaw) continue;
       const brand = brandsRaw ? toTitleCase(String(brandsRaw).split(',')[0].trim()) : null;
       const name = toTitleCase(p.product_name.trim());
       const brandInName = brand && name.toLowerCase().includes(brand.toLowerCase().split(' ')[0]);
