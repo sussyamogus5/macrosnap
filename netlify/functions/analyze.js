@@ -43,15 +43,25 @@ Respond with ONLY this JSON, nothing else:
     return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
   }
 
+  let result;
   try {
-    JSON.parse(jsonMatch[0]);
+    result = JSON.parse(jsonMatch[0]);
   } catch(e) {
     return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
   }
 
+  // Force all numeric fields to actual numbers
+  const clean = {
+    food: String(result.food || 'Unknown food'),
+    calories: parseFloat(result.calories) || 0,
+    protein_g: parseFloat(result.protein_g) || 0,
+    carbs_g: parseFloat(result.carbs_g) || 0,
+    fat_g: parseFloat(result.fat_g) || 0,
+  };
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: jsonMatch[0]
+    body: JSON.stringify(clean)
   };
 };
