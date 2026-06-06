@@ -9,7 +9,7 @@ exports.handler = async (event) => {
   const portionWeight = parseFloat(weight) || 100;
 
   const res = await fetch(
-    `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=Branded,SR%20Legacy,Survey%20(FNDDS)&pageSize=6&api_key=${process.env.USDA_API_KEY}`
+    `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=Branded,SR%20Legacy,Survey%20(FNDDS)&pageSize=8&api_key=${process.env.USDA_API_KEY}`
   );
   const data = await res.json();
 
@@ -18,32 +18,35 @@ exports.handler = async (event) => {
   }
 
   const results = data.foods.slice(0, 6).map(food => {
-    const nutrients = {};
+    let calories = 0, protein = 0, carbs = 0, fat = 0;
+
     (food.foodNutrients || []).forEach(n => {
-      if (n.nutrientName?.includes('Energy') && n.unitName === 'kcal') nutrients.calories = n.value;
-      if (n.nutrientName?.includes('Protein')) nutrients.protein_g = n.value;
-      if (n.nutrientName?.includes('Carbohydrate')) nutrients.carbs_g = n.value;
-      if (n.nutrientName?.includes('Total lipid') || n.nutrientName?.includes('fat')) nutrients.fat_g = n.value;
+      const name = (n.nutrientName || '').toLowerCase();
+      const id = n.nutrientId;
+      const val = parseFloat(n.value) || 0;
+
+      // Match by nutrient ID (most reliable) or name
+      if (id === 1008 || id === 2047 || id === 2048) calories = val;
+      else if (id === 1003) protein = val;
+      else if (id === 1005 || id === 1050) carbs = val;
+      else if (id === 1004) fat = val;
+      // Fallback name matching
+      else if (!calories && name.includes('energy') && (n.unitName || '').toLowerCase() === 'kcal') calories = val;
+      else if (!protein && name.includes('protein')) protein = val;
+      else if (!carbs && name.includes('carbohydrate')) carbs = val;
+      else if (!fat && (name.includes('total lipid') || name === 'fat, total')) fat = val;
     });
 
-    // Scale from per-100g to portionWeight
     const scale = portionWeight / 100;
     return {
-      fdcId: food.fdcId,
       food: food.description,
       brand: food.brandOwner || food.brandName || null,
-      calories: Math.round((nutrients.calories || 0) * scale),
-      protein_g: Math.round((nutrients.protein_g || 0) * scale * 10) / 10,
-      carbs_g: Math.round((nutrients.carbs_g || 0) * scale * 10) / 10,
-      fat_g: Math.round((nutrients.fat_g || 0) * scale * 10) / 10,
-      per100g: {
-        calories: Math.round(nutrients.calories || 0),
-        protein_g: Math.round((nutrients.protein_g || 0) * 10) / 10,
-        carbs_g: Math.round((nutrients.carbs_g || 0) * 10) / 10,
-        fat_g: Math.round((nutrients.fat_g || 0) * 10) / 10,
-      }
+      calories: Math.round(calories * scale),
+      protein_g: Math.round(protein * scale * 10) / 10,
+      carbs_g: Math.round(carbs * scale * 10) / 10,
+      fat_g: Math.round(fat * scale * 10) / 10,
     };
-  });
+  }).filter(r => r.calories > 0); // hide results with no data
 
   return {
     statusCode: 200,
