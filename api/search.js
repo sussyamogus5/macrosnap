@@ -7,7 +7,8 @@ export default async function handler(req, res) {
   const portionWeight = parseFloat(weight) || 100;
   const toTitleCase = s => String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
-  // Step 1: Get OAuth token from FatSecret
+  // Step 1: Get OAuth token
+  console.log('Getting FatSecret token...');
   const tokenRes = await fetch('https://oauth.fatsecret.com/connect/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -20,17 +21,22 @@ export default async function handler(req, res) {
   });
 
   const tokenData = await tokenRes.json();
+  console.log('Token response:', JSON.stringify(tokenData));
+
   if (!tokenData.access_token) {
-    return res.status(500).json({ error: 'FatSecret auth failed' });
+    return res.status(500).json({ error: 'FatSecret auth failed: ' + JSON.stringify(tokenData) });
   }
 
-  // Step 2: Search for foods
+  // Step 2: Search
+  console.log('Searching for:', query);
   const searchRes = await fetch(
     `https://platform.fatsecret.com/rest/server.api?method=foods.search&search_expression=${encodeURIComponent(query)}&format=json&max_results=8`,
     { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
   );
 
   const searchData = await searchRes.json();
+  console.log('Search response:', JSON.stringify(searchData).substring(0, 500));
+
   const foods = searchData?.foods?.food;
   if (!foods) return res.status(200).json({ results: [] });
 
@@ -39,7 +45,6 @@ export default async function handler(req, res) {
   const results = foodList
     .slice(0, 6)
     .map(food => {
-      // FatSecret returns nutrition as a description string like "Per 100g - Calories: 66kcal | Fat: 0.44g | Carbs: 16.53g | Protein: 0.83g"
       const desc = food.food_description || '';
       const calMatch = desc.match(/Calories:\s*([\d.]+)/i);
       const fatMatch = desc.match(/Fat:\s*([\d.]+)/i);
