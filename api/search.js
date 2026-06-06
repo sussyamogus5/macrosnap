@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   const data = await response.json();
   if (!data.hits || data.hits.length === 0) return res.status(200).json({ results: [] });
 
-  const toTitleCase = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  const toTitleCase = s => String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
   const seen = new Set();
 
   const results = data.hits
@@ -28,7 +28,9 @@ export default async function handler(req, res) {
       const fat = parseFloat(n['fat_100g'] || 0);
       if (!calories || !p.product_name) return null;
 
-      const brand = p.brands ? toTitleCase(p.brands.split(',')[0].trim()) : null;
+      // brands can be a string or array — handle both
+      const brandsRaw = Array.isArray(p.brands) ? p.brands[0] : p.brands;
+      const brand = brandsRaw ? toTitleCase(String(brandsRaw).split(',')[0].trim()) : null;
       const name = toTitleCase(p.product_name.trim());
       const brandInName = brand && name.toLowerCase().includes(brand.toLowerCase().split(' ')[0]);
       const displayName = (brand && !brandInName) ? `${brand} ${name}` : name;
