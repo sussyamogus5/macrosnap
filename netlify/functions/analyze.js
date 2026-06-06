@@ -7,7 +7,7 @@ exports.handler = async (event) => {
 
   const prompt = `Identify the food in this image and calculate nutrition for exactly ${weight}g of it.${extra ? ' Additional info: ' + extra : ''}
 
-Important: The portion is ${weight}g. Use standard nutrition data per 100g and scale to ${weight}g.
+The portion is ${weight}g. Use standard nutrition data per 100g and scale to ${weight}g.
 
 Respond with ONLY this JSON, nothing else:
 {"food":"name","calories":number,"protein_g":number,"carbs_g":number,"fat_g":number}`;
@@ -22,7 +22,7 @@ Respond with ONLY this JSON, nothing else:
       model: 'nvidia/nemotron-nano-12b-v2-vl:free',
       max_tokens: 256,
       messages: [
-        { role: 'system', content: 'You are a nutrition calculator. You only respond with raw JSON objects, nothing else. No markdown, no backticks, no explanation.' },
+        { role: 'system', content: 'You are a nutrition calculator. Respond only with a raw JSON object. No markdown, no backticks, no text before or after the JSON.' },
         { role: 'user', content: [
           { type: 'image_url', image_url: { url: `data:${imageMimeType};base64,${imageBase64}` } },
           { type: 'text', text: prompt }
@@ -38,19 +38,29 @@ Respond with ONLY this JSON, nothing else:
   }
 
   const raw = data.choices[0].message.content;
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  console.log('Model raw response:', raw);
+
+  // Strip markdown fences, whitespace, and common prefixes
+  let cleaned = raw
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .replace(/^[^{]*/s, '')  // strip anything before first {
+    .replace(/}[^}]*$/s, '}') // strip anything after last }
+    .trim();
+
+  // Extract JSON object
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
+    return { statusCode: 500, body: JSON.stringify({ error: `Model returned unexpected response: ${raw.substring(0, 100)}` }) };
   }
 
   let result;
   try {
     result = JSON.parse(jsonMatch[0]);
   } catch(e) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse nutrition data, try again' }) };
+    return { statusCode: 500, body: JSON.stringify({ error: `JSON parse failed: ${raw.substring(0, 100)}` }) };
   }
 
-  // Force all numeric fields to actual numbers
   const clean = {
     food: String(result.food || 'Unknown food'),
     calories: parseFloat(result.calories) || 0,
