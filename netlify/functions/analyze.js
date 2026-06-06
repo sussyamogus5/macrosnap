@@ -5,10 +5,16 @@ exports.handler = async (event) => {
 
   const { imageBase64, imageMimeType, weight, extra } = JSON.parse(event.body);
 
-  const prompt = `You are a nutrition expert. Look at this food photo and estimate macros for a ${weight}g portion.${extra ? '\n\nExtra context: ' + extra : ''}
+  const prompt = `You are a nutrition database. Identify the food in this photo, then calculate the EXACT macros for ${weight}g of it.${extra ? '\n\nExtra context: ' + extra : ''}
+
+Step 1: Identify the food.
+Step 2: Look up the nutrition per 100g for that food.
+Step 3: Multiply by ${weight}/100 to get the macros for ${weight}g.
+
+For example, if the food has 374 kcal per 100g and the portion is ${weight}g, calories = ${weight} * 3.74 = ${(weight * 3.74).toFixed(0)}.
 
 You MUST respond with ONLY a raw JSON object. No markdown. No backticks. No explanation. No text before or after. Just the JSON.
-Example: {"food":"grilled chicken","calories":165,"protein_g":31,"carbs_g":0,"fat_g":3.6}`;
+Example for 250g of Cheerios: {"food":"Cheerios","calories":935,"protein_g":30,"carbs_g":195,"fat_g":15}`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
