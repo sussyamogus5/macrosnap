@@ -8,56 +8,33 @@ exports.handler = async (event) => {
 
   const portionWeight = parseFloat(weight) || 100;
 
-  const [brandedRes, genericRes] = await Promise.all([
-    fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=Branded&pageSize=6&sortBy=score&api_key=${process.env.USDA_API_KEY}`),
-    fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&dataType=SR%20Legacy,Survey%20(FNDDS)&pageSize=3&api_key=${process.env.USDA_API_KEY}`)
-  ]);
+  const res = await fetch(
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size`
+  );
+  const data = await res.json();
 
-  const [brandedData, genericData] = await Promise.all([brandedRes.json(), genericRes.json()]);
-  const allFoods = [...(brandedData.foods || []), ...(genericData.foods || [])];
-
-  if (allFoods.length === 0) {
+  if (!data.products || data.products.length === 0) {
     return { statusCode: 200, body: JSON.stringify({ results: [] }) };
   }
 
-  const parseNutrients = (foodNutrients) => {
-    let calories = 0, protein = 0, carbs = 0, fat = 0;
-    (foodNutrients || []).forEach(n => {
-      const id = n.nutrientId;
-      const val = parseFloat(n.value) || 0;
-      const name = (n.nutrientName || '').toLowerCase();
-      if (id === 1008 || id === 2047 || id === 2048) calories = val;
-      else if (id === 1003) protein = val;
-      else if (id === 1005 || id === 1050) carbs = val;
-      else if (id === 1004) fat = val;
-      else if (!calories && name.includes('energy') && (n.unitName||'').toLowerCase()==='kcal') calories = val;
-      else if (!protein && name.includes('protein')) protein = val;
-      else if (!carbs && name.includes('carbohydrate')) carbs = val;
-      else if (!fat && name.includes('total lipid')) fat = val;
-    });
-    return { calories, protein, carbs, fat };
-  };
-
   const toTitleCase = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-
   const seen = new Set();
-  const results = allFoods
-    .map(food => {
-      const { calories, protein, carbs, fat } = parseNutrients(food.foodNutrients);
-      if (!calories) return null;
 
-      // Use full description for better differentiation
-      const fullDesc = toTitleCase(food.description);
-      const brand = food.brandName
-        ? toTitleCase(food.brandName)
-        : food.brandOwner
-        ? toTitleCase(food.brandOwner)
-        : null;
+  const results = data.products
+    .map(p => {
+      const n = p.nutriments || {};
+      const calories = parseFloat(n['energy-kcal_100g'] || n['energy_100g'] / 4.184 || 0);
+      const protein = parseFloat(n['proteins_100g'] || 0);
+      const carbs = parseFloat(n['carbohydrates_100g'] || 0);
+      const fat = parseFloat(n['fat_100g'] || 0);
 
-      // Build a display name: if brand is already in the description, just use description
-      // otherwise prepend brand
-      const brandInDesc = brand && fullDesc.toLowerCase().includes(brand.toLowerCase().split(' ')[0]);
-      const displayName = (brand && !brandInDesc) ? `${brand} ${fullDesc}` : fullDesc;
+      if (!calories || !p.product_name) return null;
+
+      const brand = p.brands ? toTitleCase(p.brands.split(',')[0].trim()) : null;
+      const name = toTitleCase(p.product_name.trim());
+      const displayName = (brand && !name.toLowerCase().includes(brand.toLowerCase().split(' ')[0]))
+        ? `${brand} ${name}`
+        : name;
 
       const key = displayName.toLowerCase();
       if (seen.has(key)) return null;
